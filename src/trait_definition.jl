@@ -20,7 +20,6 @@ macro define_trait(args...)
     return code
 end
 
-# Add single trait
 macro implement_trait(x,trait)
     quote
         # Sanity checks
@@ -30,7 +29,7 @@ macro implement_trait(x,trait)
         !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait")
         supertype($(esc(trait))) != AbstractTrait && error($(esc(trait))," is a subtrait and must be given along with its parent traits")
         !isleaftrait($(esc(trait))) && error("Trait must be a leaf trait, ",$(esc(trait))," has subtraits: ",[@sprintf("%s ",t) for t in subtraits($(esc(trait)))]...)
-        if hastrait($x,$(esc(trait)))
+        if implementstrait($x,$(esc(trait)))
             warn($x," already has trait ",$(esc(trait)),", ignoring.")
         else
             @_traitconstructor($x,$(esc(trait)),$(esc(trait)))
@@ -49,7 +48,7 @@ macro implement_trait(x,trait,subtrait)
         !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait")
         !($(esc(subtrait)) <: AbstractTrait) && error($(esc(subtrait))," is not a trait")
         !($(esc(subtrait)) <: $(esc(trait))) && error($(esc(subtrait))," is not a subtrait of ",$(esc(trait)))
-        if hastrait($x,$(esc(trait)))
+        if implementstrait($x,$(esc(trait)))
             warn($x," already has trait ",$(esc(trait)),", ignoring.")
         else
             @_traitconstructor($x,$(esc(trait)),$(esc(subtrait)))

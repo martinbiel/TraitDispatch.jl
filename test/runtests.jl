@@ -7,6 +7,10 @@ using Base.Test
     B2
 end
 
+@implement_trait Integer A
+@implement_trait Real B B1
+@implement_trait Real B B2
+
 @testset "Trait Definition" begin
     @test istrait(A) == true
     @test isleaftrait(A) == true
@@ -23,34 +27,29 @@ end
 end
 
 @testset "Trait Implementation" begin
-    @implement_trait Integer A
-    # Integers should now have A, floats should not
-    @test hastrait(Int32(1),A) == true
-    @test hastrait(Int64(1),A) == true
-    @test hastrait(1.0,A) == false
-    # Actually, floats should not have anything
-    @test notraits(1.0) == true
+    # Integers should have A, floats should not
+    @test hastrait(Int32(1),A)
+    @test hastrait(Int64(1),A)
+    @test !hastrait(1.0,A)
 
-    @implement_trait Real B B1
-    # Integers should have B1 now, but also retain A
-    @test hastrait(Int32(1),A) == true
-    @test hastrait(Int64(1),A) == true
-    @test hastrait(Int32(1),B1) == true
-    @test hastrait(Int64(1),B1) == true
-    # Float should have B1 (and thereby B) as well, but still not A
-    @test hastrait(1.0,A) == false
-    @test hastrait(1.0,B1) == true
-    @test hastrait(1.0,B) == true
-    # Should not be possible to add B2 to float types now
-    @implement_trait Real B B2
-    @test hastrait(1.0,B1) == false
-    @test hastrait(1.0,B2) == false
+    # Strings should not have anything
+    @test notraits("string")
+
+    # Integers and floats should have B1 (and thereby B) as well
+    @test hastrait(1,A)
+    @test hastrait(1,B1)
+    @test !hastrait(1.0,A)
+    @test hastrait(1.0,B1)
+    @test hastrait(1.0,B)
+
+    # Should not have been possible to add B2 to float types
+    @test !hastrait(1.0,B2)
 
     # Sanity checks
     @test_throws ErrorException @implement_trait 1 A
-    @test_throws ErrorException @implement_trait Integer AbstractTrait
-    @test_throws ErrorException @implement_trait Integer NullTrait
-    @test_throws ErrorException @implement_trait Integer Real
+    @test_throws ErrorException @implement_trait Integer TraitDispatch.AbstractTrait
+    @test_throws ErrorException @implement_trait Integer TraitDispatch.NullTrait
     @test_throws ErrorException @implement_trait Real B
     @test_throws ErrorException @implement_trait Real B1
+    @test_throws ErrorException @implement_trait Real A B1
 end

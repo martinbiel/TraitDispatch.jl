@@ -36,11 +36,11 @@ function implementstrait(::Type{S},::Type{T}) where {S, T <: AbstractTrait}
 end
 implementstrait(x,::Type{AbstractTrait}) = false
 implementstrait(x,::Type{NullTrait}) = NullTrait ∈ traits(x)
-implementstrait(x,traits...) = all(map(trait -> hastrait(x,trait),[traits...]))
-implementstrait(x) = !implementstrait(x,NullTrait)
+implementstraits(x,traits...) = all(map(trait -> hastrait(x,trait),[traits...]))
+implementstraits(x) = !implementstrait(x,NullTrait)
 
-notraits(x) = !hastrait(x)
-notraits(x::Type{T}) where T <: AbstractTrait = !implementstrait(x)
+notraits(x) = !hastraits(x)
+notraits(x::Type{T}) where T <: AbstractTrait = !implementstraits(x)
 
 traits() = subtraits(AbstractTrait)
 function traits(x)
