@@ -5,15 +5,15 @@ using MacroTools: postwalk
 
 export
     @define_trait,
-    @define_subtrait,
+    @implement_trait,
     @define_traitfn,
     @implement_traitfn,
-    @implement_trait,
     istrait,
     isleaftrait,
     subtraits,
     hastrait,
     hastraits,
+    notraits,
     traits
 
 

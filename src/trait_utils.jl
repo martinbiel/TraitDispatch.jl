@@ -11,7 +11,7 @@ function hastrait(x,::Type{T}) where T
     info(T, " is not a trait")
     return false
 end
-function hastrait(::Type{S},::Type{T}) where {S, T <: AbstractTrait}
+function hastrait(x::S,::Type{T}) where {S, T <: AbstractTrait}
     if supertype(T) == AbstractTrait
         return T(S) != NullTrait
     else
@@ -23,7 +23,24 @@ hastrait(x,::Type{NullTrait}) = NullTrait ∈ traits(x)
 hastraits(x,traits...) = all(map(trait -> hastrait(x,trait),[traits...]))
 hastraits(x) = !hastrait(x,NullTrait)
 
-notraits(x) = !hastraits(x)
+function implementstrait(x,::Type{T}) where T
+    info(T, " is not a trait")
+    return false
+end
+function implementstrait(::Type{S},::Type{T}) where {S, T <: AbstractTrait}
+    if supertype(T) == AbstractTrait
+        return T(S) != NullTrait
+    else
+        return supertype(T)(S) == T
+    end
+end
+implementstrait(x,::Type{AbstractTrait}) = false
+implementstrait(x,::Type{NullTrait}) = NullTrait ∈ traits(x)
+implementstrait(x,traits...) = all(map(trait -> hastrait(x,trait),[traits...]))
+implementstrait(x) = !implementstrait(x,NullTrait)
+
+notraits(x) = !hastrait(x)
+notraits(x::Type{T}) where T <: AbstractTrait = !implementstrait(x)
 
 traits() = subtraits(AbstractTrait)
 function traits(x)

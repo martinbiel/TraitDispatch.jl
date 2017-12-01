@@ -23,9 +23,6 @@ end
 end
 
 @testset "Trait Implementation" begin
-    # Types, not values, implement traits
-    @test_throws ErrorException @implement_trait 1 A
-
     @implement_trait Integer A
     # Integers should now have A, floats should not
     @test hastrait(Int32(1),A) == true
@@ -33,9 +30,7 @@ end
     @test hastrait(1.0,A) == false
     # Actually, floats should not have anything
     @test notraits(1.0) == true
-    # Syntax for subtrait implementation
-    @test_throws ErrorException @implement_trait Real B
-    @test_throws ErrorException @implement_trait Real B1
+
     @implement_trait Real B B1
     # Integers should have B1 now, but also retain A
     @test hastrait(Int32(1),A) == true
@@ -50,4 +45,12 @@ end
     @implement_trait Real B B2
     @test hastrait(1.0,B1) == false
     @test hastrait(1.0,B2) == false
+
+    # Sanity checks
+    @test_throws ErrorException @implement_trait 1 A
+    @test_throws ErrorException @implement_trait Integer AbstractTrait
+    @test_throws ErrorException @implement_trait Integer NullTrait
+    @test_throws ErrorException @implement_trait Integer Real
+    @test_throws ErrorException @implement_trait Real B
+    @test_throws ErrorException @implement_trait Real B1
 end

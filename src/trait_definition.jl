@@ -48,7 +48,7 @@ macro implement_trait(x,trait,subtrait)
         $(esc(subtrait)) == NullTrait && error("Cannot give the NullTrait")
         !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait")
         !($(esc(subtrait)) <: AbstractTrait) && error($(esc(subtrait))," is not a trait")
-        !isleaftrait($(esc(subtrait))) && error("Subtrait must be a leaf trait, ",$(esc(subtrait))," has subtraits: ",[@sprintf("%s ",t) for t in subtraits($(esc(subtrait)))]...)
+        !($(esc(subtrait)) <: $(esc(trait))) && error($(esc(subtrait))," is not a subtrait of ",$(esc(trait)))
         if hastrait($x,$(esc(trait)))
             warn($x," already has trait ",$(esc(trait)),", ignoring.")
         else
