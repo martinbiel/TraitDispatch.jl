@@ -46,5 +46,8 @@ end
     @test hastrait(1.0,A) == false
     @test hastrait(1.0,B1) == true
     @test hastrait(1.0,B) == true
-    #
+    # Should not be possible to add B2 to float types now
+    @implement_trait Real B B2
+    @test hastrait(1.0,B1) == false
+    @test hastrait(1.0,B2) == false
 end
