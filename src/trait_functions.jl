@@ -41,3 +41,16 @@ macro define_traitfn(args...)
         $fun_name($first_arg,::Type{NullTrait}) = $default_impl
     end
 end
+
+# macro define_traitfn(trait,fndef)
+
+#     @q begin
+#         $(esc(trait)) == AbstractTrait && error("Cannot define trait function for the AbstractTrait")
+#         $(esc(trait)) == NullTrait && error("Cannot define trait function for the NullTrait")
+#         !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait")
+#         (supertype($(esc(trait))) != AbstractTrait && leaftrait($(esc(trait)))) && error("Trait function must be defined for the parent trait. ", $(esc(trait))," has parent ",supertype($(esc(trait))))
+#         $trait_function_LHS = $trait_function_RHS
+
+#         $fun_name($first_arg,::Type{NullTrait}) = $default_impl
+#     end
+# end

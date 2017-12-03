@@ -1,7 +1,7 @@
 module TraitDispatch
 
 using MacroTools
-using MacroTools: postwalk
+using MacroTools: postwalk, @q
 
 export
     @define_trait,
