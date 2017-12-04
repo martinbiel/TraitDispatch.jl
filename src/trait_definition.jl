@@ -1,35 +1,40 @@
 macro define_trait(args)
     def = if @capture(args, trait_Symbol)
-        @q begin
+        prettify(@q begin
             abstract type $(esc(trait)) <: AbstractTrait end
             $(esc(trait))(::Type{$(esc(:T))}) where $(esc(:T)) = NullTrait
-        end
-    elseif @capture(args, trait_Symbol = subtraits_)
+        end)
+    elseif @capture(args, trait_Symbol = block_)
         code = @q begin
             abstract type $(esc(trait)) <: AbstractTrait end
             $(esc(trait))(::Type{$(esc(:T))}) where $(esc(:T)) = NullTrait
         end
-        for ex in rmlines(subtraits).args
-            @capture(ex,subtrait_Symbol) || error("Expected subtrait symbol, got ", ex)
-            push!(code.args,unblock(@q begin
-                  abstract type $(esc(subtrait)) <: $(esc(trait)) end
-                  end
-                  ))
+        for ex in rmlines(block).args
+            if @capture(ex,subtrait_Symbol)
+                push!(code.args,unblock(@q begin
+                                        abstract type $(esc(subtrait)) <: $(esc(trait)) end
+                                        end
+                                        ))
+            elseif @capture(ex,f_(x__)) || @capture(ex,f_(x__) = body_)
+                push!(code.args,:(@define_traitfn($(esc(trait)),$(esc(ex)))))
+            else
+                error("Expected subtrait or traitfn definition, got ", ex)
+            end
         end
-        code
+        prettify(code)
     elseif @capture(args, subtrait_Symbol <: trait_Symbol)
-        @q begin
+        prettify(@q begin
             !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait")
             $(esc(trait)) == NullTrait && error("The NullTrait can not have subtraits")
             supertype($(esc(trait))) != AbstractTrait && error($(esc(trait))," is a subtrait and can not be given subtraits")
             abstract type $(esc(subtrait)) <: $(esc(trait)) end
-        end
+        end)
     end
 end
 
 
 macro implement_trait(x,trait)
-    @q begin
+    prettify(@q begin
         # Sanity checks
         !(isa($x,DataType) || isa($x,UnionAll)) && error("Can only give traits to types")
         $(esc(trait)) == AbstractTrait && error("Cannot give the AbstractTrait")
@@ -40,13 +45,13 @@ macro implement_trait(x,trait)
         if implementstrait($x,$(esc(trait)))
             warn($x," already has trait ",$(esc(trait)),", ignoring.")
         else
-            unblock(@_traitconstructor($x,$(esc(trait)),$(esc(trait))))
+            @_traitconstructor($x,$(esc(trait)),$(esc(trait)))
         end
-    end
+    end)
 end
 
 macro implement_trait(x,trait,subtrait)
-    @q begin
+    prettify(@q begin
         # Sanity checks
         !(isa($x,DataType) || isa($x,UnionAll)) && error("Can only give traits to types")
         $(esc(trait)) == AbstractTrait && error("Cannot give the AbstractTrait")
@@ -59,9 +64,9 @@ macro implement_trait(x,trait,subtrait)
         if implementstrait($x,$(esc(trait)))
             warn($x," already has trait ",$(esc(trait)),", ignoring.")
         else
-            unblock(@_traitconstructor($x,$(esc(trait)),$(esc(subtrait))))
+            @_traitconstructor($x,$(esc(trait)),$(esc(subtrait)))
         end
-    end
+    end)
 end
 
 macro _traitconstructor(x,traitdef,traitval)

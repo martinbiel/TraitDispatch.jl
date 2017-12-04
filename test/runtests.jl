@@ -5,6 +5,7 @@ using Base.Test
 @define_trait B = begin
     B1
     B2
+    bfunc(x) = "B"
 end
 @define_trait B3 <: B
 
@@ -12,16 +13,13 @@ end
 @implement_trait Real B B1
 @implement_trait Real B B2
 @implement_trait Complex B B2
+@implement_trait AbstractArray B B3
 
 @define_traitfn A afunc(x)
-#@implement_traitfn
-afunc(x,::Type{A}) = "A"
+@implement_traitfn A afunc(x) = "A"
 
-@define_traitfn B bfunc(x) = "B"
-#@implement_traitfn
-#@implement_traitfn
-bfunc(x,::Type{B1}) = "B1"
-bfunc(x,::Type{B2}) = "B2"
+@implement_traitfn B1 bfunc(x) = "B1"
+@implement_traitfn B2 bfunc(x) = "B2"
 
 @testset "Trait Definition" begin
     @test istrait(A)
@@ -49,6 +47,10 @@ end
 
     # Strings should not have anything
     @test notraits("string")
+
+    # Subtypes of AbstractArray should have B3
+    @test hastrait(Vector(),B3)
+    @test hastrait(Matrix(0,0),B3)
 
     # Integers and floats should have B1 (and thereby B) as well
     @test hastrait(1,A)
@@ -81,4 +83,16 @@ end
     @test bfunc(1.0) == "B1"
     # Complex has B2
     @test bfunc(complex(1)) == "B2"
+    # String has B3, but there is no bfunc implementation for B3
+    @test_throws ErrorException bfunc(Vector())
+
+    # Sanity checks
+    # Definitions
+    @test_throws ErrorException @define_traitfn AbstractTrait f(x)
+    @test_throws ErrorException @define_traitfn NullTrait f(x)
+    @test_throws ErrorException @define_traitfn B3 b(x)
+    # Implementations
+    @test_throws ErrorException @implement_traitfn AbstractTrait f(x) = 0
+    @test_throws ErrorException @implement_traitfn NullTrait f(x) = 0
+    @test_throws ErrorException @implement_traitfn B b(x) = "B"
 end
