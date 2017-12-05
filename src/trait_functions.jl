@@ -1,4 +1,4 @@
-macro define_traitfn(trait,fndef)
+macro define_traitfn(trait,fndef,impl...)
     @capture(fndef,f_()) && error("Nothing to trait dispatch on")
     # Match arguments of type f(x) and f(x) = body
     fndef = (fndef.head == :call || fndef.head == :where) ? :($fndef = error($(fndef.args[2])," has no applicable traits")) : fndef
@@ -8,6 +8,26 @@ macro define_traitfn(trait,fndef)
         error("Invalid trait function syntax. Parser says: ", er.msg)
     end
     !isempty(traitfn_def_split[:whereparams]) && error("Trait functions should not be parametrized")
+
+    # Maybe a parentimpl was provided
+    traitfn_impl_split = if length(impl) > 1
+        error("Too many arguments provided. Specify a trait, a trait function definition and possibly an implementation")
+    else
+        if length(impl) == 1
+            traitfn_impl_split = try
+                splitdef(impl[1])
+            catch er
+                error("Invalid trait function syntax. Parser says: ", er.msg)
+            end
+            traitfn_def_split[:name] != traitfn_impl_split[:name] && error("Trait function names are not consistent")
+            traitfn_impl_split[:args][end] != trait && error("Specify clearly that ", traitfn_def_split[:name], " is being implemented for trait ", trait, " by specifying it as the last argument")
+            pop!(traitfn_impl_split[:args])
+            !(all(traitfn_def_split[:args] .== traitfn_impl_split[:args])) && error("Inconsistent trait function arguments")
+            traitfn_impl_split
+        else
+            Dict()
+        end
+    end
 
     # Prepare the argument x that will be subjected to trait dispatch
     first_arg = traitfn_def_split[:args][1]
@@ -44,7 +64,7 @@ macro define_traitfn(trait,fndef)
     # Finish NotImplemented implementation with dispatch on parent trait
     push!(noimplement_split[:args],:(::Type{S}))
     noimplement_split[:whereparams] = (:T,:(S <: $trait))
-    noimplement_split[:body] = :(error("Trait function not implemented"))
+    noimplement_split[:body] = isempty(traitfn_impl_split) ? :(error("Trait function not implemented")) : traitfn_impl_split[:body]
 
     noimplement_impl = combinecall(noimplement_split)
 

@@ -21,6 +21,10 @@ end
 @implement_traitfn B1 bfunc(x) = "B1"
 @implement_traitfn B2 bfunc(x) = "B2"
 
+@define_traitfn B parentbfunc(x) parentbfunc(x,B) = "B"
+@implement_traitfn B1 parentbfunc(x) = "B1"
+@implement_traitfn B2 parentbfunc(x) = "B2"
+
 @testset "Trait Definition" begin
     @test istrait(A)
     @test isleaftrait(A)
@@ -83,8 +87,14 @@ end
     @test bfunc(1.0) == "B1"
     # Complex has B2
     @test bfunc(complex(1)) == "B2"
-    # String has B3, but there is no bfunc implementation for B3
+    # Vector has B3, but there is no bfunc implementation for B3
     @test_throws ErrorException bfunc(Vector())
+
+    # Same should work for parentbfunc
+    @test parentbfunc(1.0) == "B1"
+    @test parentbfunc(complex(1)) == "B2"
+    # There is still no B3 implementation, but here should fallback to parent B version
+    @test parentbfunc(Vector()) == "B"
 
     # Sanity checks
     # Definitions
