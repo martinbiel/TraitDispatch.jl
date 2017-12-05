@@ -78,7 +78,7 @@ macro define_traitfn(trait,fndef,impl...)
         # Definitions
         $(esc(traitfn_def))
         $(esc(nulltrait_impl))
-        if !isempty(subtraits($(esc(trait))))
+        if !isempty(subtraits($(esc(trait)))) || length($impl) == 1
             $(esc(noimplement_impl))
         end
     end)
