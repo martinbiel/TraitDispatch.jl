@@ -19,7 +19,7 @@ end
 @implement_traitfn A afunc(x) = "A"
 
 @implement_traitfn B1 bfunc(x) = "B1"
-@implement_traitfn B2 bfunc(x) = "B2"
+@implement_traitfn B2 bfunc(x::T) where T <: Number = "B2"
 
 @define_traitfn B parentbfunc(x) parentbfunc(x,B) = "B"
 @implement_traitfn B1 parentbfunc(x) = "B1"

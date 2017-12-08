@@ -7,7 +7,6 @@ macro define_traitfn(trait,fndef,impl...)
     catch er
         error("Invalid trait function syntax. Parser says: ", er.msg)
     end
-    !isempty(traitfn_def_split[:whereparams]) && error("Trait functions should not be parametrized")
 
     # Maybe a parentimpl was provided
     traitfn_impl_split = if length(impl) > 1
@@ -29,20 +28,31 @@ macro define_traitfn(trait,fndef,impl...)
         end
     end
 
+    # Almost the same definition will be used to implement the NullTrait- and NotImplemented behaviour
+    nulltrait_split = deepcopy(traitfn_def_split)
+    noimplement_split = deepcopy(traitfn_def_split)
+
     # Prepare the argument x that will be subjected to trait dispatch
     first_arg = traitfn_def_split[:args][1]
     x,x_type = @capture(first_arg,x_::T_) ? (x,T) : (first_arg,:none)
 
     # Prepare the lhs of the traitfn def. Make sure parameter restriction match type restriction on x
-    traitfn_def_split[:args][1] = :($x::T)
+    parname = :T
     if x_type == :none
-        traitfn_def_split[:whereparams] = (:T,)
+        traitfn_def_split[:whereparams] = tuple(traitfn_def_split[:whereparams]...,:T)
     else
-        traitfn_def_split[:whereparams] = (:(T <: $x_type),)
+        if isempty(traitfn_def_split[:whereparams])
+            traitfn_def_split[:whereparams] = tuple(traitfn_def_split[:whereparams]...,:(T <: $x_type))
+        else
+            if !(x_type ∈ traitfn_def_split[:whereparams])
+                if !any(map(wparam -> @capture(wparam,T_ <: types_) && x_type == T,traitfn_def_split[:whereparams]))
+                    traitfn_def_split[:whereparams] = tuple(traitfn_def_split[:whereparams]...,:(VarType <: $x_type))
+                    parname = :VarType
+                end
+            end
+        end
     end
-    # Almost the same definition will be used to implement the NullTrait- and NotImplemented behaviour
-    nulltrait_split = deepcopy(traitfn_def_split)
-    noimplement_split = deepcopy(traitfn_def_split)
+    traitfn_def_split[:args][1] = :($x::$parname)
 
     # Change rhs of traitfn definition to trait dispatch call
     rhs = Expr(:call)
@@ -50,7 +60,7 @@ macro define_traitfn(trait,fndef,impl...)
     append!(rhs.args,[isa(arg,Symbol) ? arg : arg.args[1] for arg in traitfn_def_split[:args]])
     traitpick = Expr(:call)
     push!(traitpick.args,trait)
-    push!(traitpick.args,:T)
+    push!(traitpick.args,parname)
     push!(rhs.args,traitpick)
     traitfn_def_split[:body] = rhs
 
@@ -62,8 +72,8 @@ macro define_traitfn(trait,fndef,impl...)
     nulltrait_impl = combinecall(nulltrait_split)
 
     # Finish NotImplemented implementation with dispatch on parent trait
-    push!(noimplement_split[:args],:(::Type{S}))
-    noimplement_split[:whereparams] = (:T,:(S <: $trait))
+    push!(noimplement_split[:args],:(::Type{TraitType}))
+    noimplement_split[:whereparams] = (noimplement_split[:whereparams]...,:(TraitType <: $trait))
     noimplement_split[:body] = isempty(traitfn_impl_split) ? :(error("Trait function not implemented")) : traitfn_impl_split[:body]
 
     noimplement_impl = combinecall(noimplement_split)
@@ -92,7 +102,6 @@ macro implement_traitfn(trait,fndef)
     catch er
         error("Invalid trait function syntax. Parser says: ", er.msg)
     end
-    !isempty(traitfn_impl_split[:whereparams]) && error("Trait functions should not be parametrized")
 
     # Finish the lhs of the traitfn implementation, by adding TraitDispatch
     push!(traitfn_impl_split[:args],:(::Type{$trait}))
