@@ -15,12 +15,15 @@ export
     subtraits,
     hastrait,
     hastraits,
+    implementstrait,
+    implementstraits,
     notraits,
     traits
 
 
-abstract type AbstractTrait end
-abstract type NullTrait end
+abstract type AbstractTrait{T} end
+abstract type NullTrait{T} end
+traitdispatch(::Type{Trait}) where {T,Trait<:AbstractTrait{T}} = NullTrait{T}
 
 include("trait_functions.jl")
 include("trait_definition.jl")

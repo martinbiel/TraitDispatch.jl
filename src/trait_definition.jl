@@ -1,42 +1,41 @@
 macro define_trait(args)
     def = if @capture(args, trait_Symbol)
-        prettify(@q begin
-            abstract type $(esc(trait)) <: AbstractTrait end
-            $(esc(trait))(::Type{$(esc(:T))}) where $(esc(:T)) = NullTrait
-        end)
+        @q begin
+            abstract type $(esc(trait)){$(esc(:T))} <: AbstractTrait{$(esc(:T))} end
+        end
     elseif @capture(args, trait_Symbol = block_)
         code = @q begin
-            abstract type $(esc(trait)) <: AbstractTrait end
-            $(esc(trait))(::Type{$(esc(:T))}) where $(esc(:T)) = NullTrait
+            abstract type $(esc(trait)){$(esc(:T))} <: AbstractTrait{$(esc(:T))} end
         end
         for ex in rmlines(block).args
             if @capture(ex,subtrait_Symbol)
-                push!(code.args,unblock(@q begin
-                                        abstract type $(esc(subtrait)) <: $(esc(trait)) end
-                                        end
-                                        ))
+                subcode = @q begin
+                    abstract type $(esc(subtrait)){$(esc(:T))} <: $(esc(trait)){$(esc(:T))} end
+                end
+                push!(code.args,unblock(subcode))
             elseif @capture(ex,f_(x__)) || @capture(ex,f_(x__) = body_)
                 push!(code.args,:(@define_traitfn($(esc(trait)),$(esc(ex)))))
             else
                 error("Expected subtrait or traitfn definition, got ", ex)
             end
         end
-        prettify(code)
+        code
     elseif @capture(args, subtrait_Symbol <: trait_Symbol)
-        prettify(@q begin
-            !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait")
+        @q begin
             $(esc(trait)) == NullTrait && error("The NullTrait can not have subtraits")
+            !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait")
             supertype($(esc(trait))) != AbstractTrait && error($(esc(trait))," is a subtrait and can not be given subtraits")
-            abstract type $(esc(subtrait)) <: $(esc(trait)) end
-        end)
+            abstract type $(esc(subtrait)){$(esc(:T))} <: $(esc(trait)){$(esc(:T))} end
+        end
     end
+    prettify(def)
 end
 
-
 macro implement_trait(x,trait)
-    prettify(@q begin
+    code = @q begin
         # Sanity checks
         !(isa($(esc(x)),DataType) || isa($(esc(x)),UnionAll)) && error("Can only give traits to types")
+        ($(esc(x)) <: AbstractTrait) && error($(esc(x))," is a trait, and can not implement traits")
         $(esc(trait)) == AbstractTrait && error("Cannot give the AbstractTrait")
         $(esc(trait)) == NullTrait && error("Cannot give the NullTrait")
         !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait")
@@ -45,15 +44,17 @@ macro implement_trait(x,trait)
         if implementstrait($(esc(x)),$(esc(trait)))
             warn($(esc(x))," already has trait ",$(esc(trait)),", ignoring.")
         else
-            @_traitconstructor($(esc(x)),$(esc(trait)),$(esc(trait)))
+            $(esc(:TraitDispatch)).traitdispatch(::Type{$(esc(trait)){$(esc(:T))}}) where $(esc(:T)) <: $(esc(x)) = $(esc(trait)){$(esc(:T))}
         end
-    end)
+    end
+    prettify(code)
 end
 
 macro implement_trait(x,trait,subtrait)
-    prettify(@q begin
+    code = @q begin
         # Sanity checks
         !(isa($(esc(x)),DataType) || isa($(esc(x)),UnionAll)) && error("Can only give traits to types")
+        ($(esc(x)) <: AbstractTrait) && error($(esc(x))," is a trait, and can not implement traits")
         $(esc(trait)) == AbstractTrait && error("Cannot give the AbstractTrait")
         $(esc(subtrait)) == AbstractTrait && error("Cannot give the AbstractTrait")
         $(esc(trait)) == NullTrait && error("Cannot give the NullTrait")
@@ -64,17 +65,9 @@ macro implement_trait(x,trait,subtrait)
         if implementstrait($(esc(x)),$(esc(trait)))
             warn($(esc(x))," already has trait ",$(esc(trait)),", ignoring.")
         else
-            @_traitconstructor($(esc(x)),$(esc(trait)),$(esc(subtrait)))
-        end
-    end)
-end
-
-macro _traitconstructor(x,traitdef,traitval)
-    @q begin
-        if isleaftype($(esc(x)))
-            $(esc(traitdef))(::Type{$(esc(x))}) = $(esc(traitval))
-        else
-            $(esc(traitdef))(::Type{$(esc(:T))}) where $(esc(:T)) <: $(esc(x)) = $(esc(traitval))
+            $(esc(:TraitDispatch)).traitdispatch(::Type{$(esc(trait)){$(esc(:T))}}) where $(esc(:T)) <: $(esc(x)) = $(esc(subtrait)){$(esc(:T))}
+            $(esc(:TraitDispatch)).traitdispatch(::Type{$(esc(subtrait)){$(esc(:T))}}) where $(esc(:T)) <: $(esc(x)) = $(esc(subtrait)){$(esc(:T))}
         end
     end
+    prettify(code)
 end

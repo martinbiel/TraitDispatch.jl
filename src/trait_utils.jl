@@ -1,63 +1,53 @@
 istrait(::Type{T}) where T = false
-istrait(::Type{T}) where T <: AbstractTrait = true
+istrait(::Type{Trait}) where Trait <: AbstractTrait = true
 
-isleaftrait(::Type{T}) where T <: AbstractTrait = isempty(subtraits(T))
-isleaftrait(::Type{AbstractTrait}) = false
-isleaftrait(::Type{NullTrait}) = false
+isleaftrait(::Type{T}) where T = false
+isleaftrait(::Type{Trait}) where Trait <: AbstractTrait = isempty(subtraits(Trait))
+isleaftrait(::Type{AbstractTrait{T}}) where T = false
+isleaftrait(::Type{NullTrait{T}}) where T = false
 
-subtraits(::Type{T}) where T <: AbstractTrait = Vector{DataType}(subtypes(T))
+subtraits(::Type{T}) where T = DataType[]
+subtraits(::Type{Trait}) where Trait <: AbstractTrait = Vector{UnionAll}(subtypes(Trait))
 
 function hastrait(x,::Type{T}) where T
     info(T, " is not a trait")
     return false
 end
-function hastrait(x::S,::Type{T}) where {S, T <: AbstractTrait}
-    if supertype(T) == AbstractTrait
-        return T(S) != NullTrait
-    else
-        return supertype(T)(S) == T
-    end
-end
-hastrait(x,::Type{AbstractTrait}) = false
-hastrait(x,::Type{NullTrait}) = NullTrait ∈ traits(x)
+hastrait(x::T,::Type{Trait}) where {T, Trait <: AbstractTrait} = traitdispatch(Trait{T}) != NullTrait{T}
+hastrait(x::T,::Type{AbstractTrait{T}}) where T = false
+hastrait(x::T,::Type{NullTrait{T}}) where T = NullTrait{T} ∈ traits(x)
 hastraits(x,traits...) = all(map(trait -> hastrait(x,trait),[traits...]))
-hastraits(x) = !hastrait(x,NullTrait)
+hastraits(x::T) where T = !hastrait(x,NullTrait{T})
 
 function implementstrait(x,::Type{T}) where T
     info(T, " is not a trait")
     return false
 end
-function implementstrait(::Type{S},::Type{T}) where {S, T <: AbstractTrait}
-    if supertype(T) == AbstractTrait
-        return T(S) != NullTrait
-    else
-        return supertype(T)(S) == T
-    end
-end
-implementstrait(x,::Type{AbstractTrait}) = false
-implementstrait(x,::Type{NullTrait}) = NullTrait ∈ traits(x)
+implementstrait(::Type{T},::Type{Trait}) where {T, Trait <: AbstractTrait} = traitdispatch(Trait{T}) != NullTrait{T}
+implementstrait(::Type{T},::Type{AbstractTrait{T}}) where T = false
+implementstrait(::Type{T},::Type{NullTrait{T}}) where T = NullTrait{T} ∈ traits(x)
 implementstraits(x,traits...) = all(map(trait -> hastrait(x,trait),[traits...]))
-implementstraits(x) = !implementstrait(x,NullTrait)
+implementstraits(x::Type{T}) where T = !implementstrait(x,NullTrait{T})
 
 notraits(x) = !hastraits(x)
-notraits(x::Type{T}) where T <: AbstractTrait = !implementstraits(x)
+notraits(x::Type{T}) where T = !implementstraits(x)
 
 traits() = subtraits(AbstractTrait)
-function traits(x)
+function traits(x::T) where T
     traitlist = _traits(x,AbstractTrait)
     if isempty(traitlist)
-        return [NullTrait]
+        return [NullTrait{T}]
     else
         return traitlist
     end
 end
 
-function _traits(x,::Type{T}) where T <: AbstractTrait
-    traitlist = Vector{DataType}()
-    if hastrait(x,T)
-        push!(traitlist,T)
+function _traits(x::T,::Type{Trait}) where {T, Trait <: AbstractTrait}
+    traitlist = Vector{UnionAll}()
+    if hastrait(x,Trait)
+        push!(traitlist,Trait)
     end
-    subtraits = Vector{DataType}(subtypes(T))
+    subtraits = Vector{UnionAll}(subtypes(Trait))
     if isempty(subtraits)
         return traitlist
     else

@@ -24,6 +24,7 @@ end
 @define_traitfn B parentbfunc(x) parentbfunc(x,B) = "B"
 @implement_traitfn B1 parentbfunc(x) = "B1"
 @implement_traitfn B2 parentbfunc(x) = "B2"
+@define_traitfn B3 b3func(x) b3func(x,B3) = "B3"
 
 @testset "Trait Definition" begin
     @test istrait(A)
@@ -95,12 +96,14 @@ end
     @test parentbfunc(complex(1)) == "B2"
     # There is still no B3 implementation, but here should fallback to parent B version
     @test parentbfunc(Vector()) == "B"
+    # B3 should have its own function b3func
+    @test b3func(Vector()) == "B3"
+    @test_throws ErrorException b3func(1.0)
 
     # Sanity checks
     # Definitions
     @test_throws ErrorException @define_traitfn AbstractTrait f(x)
     @test_throws ErrorException @define_traitfn NullTrait f(x)
-    @test_throws ErrorException @define_traitfn B3 b(x)
     # Implementations
     @test_throws ErrorException @implement_traitfn AbstractTrait f(x) = 0
     @test_throws ErrorException @implement_traitfn NullTrait f(x) = 0
