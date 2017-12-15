@@ -5,26 +5,32 @@ using Base.Test
 @define_trait B = begin
     B1
     B2
-    bfunc(x) = "B"
+    bfunc(x) = begin
+        bfunc(x,NullTrait) = "B"
+    end
 end
 @define_trait B3 <: B
 
 @implement_trait Integer A
-@implement_trait Real B B1
-@implement_trait Real B B2
-@implement_trait Complex B B2
-@implement_trait AbstractArray B B3
+@implement_trait Real B1
+@implement_trait Real B2
+@implement_trait Complex B2
+@implement_trait AbstractArray B3
 
 @define_traitfn A afunc(x)
-@implement_traitfn A afunc(x) = "A"
+@implement_traitfn afunc(x,A) = "A"
 
-@implement_traitfn B1 bfunc(x) = "B1"
-@implement_traitfn B2 bfunc(x::T) where T <: Number = "B2"
+@implement_traitfn bfunc(x,B1) = "B1"
+@implement_traitfn bfunc(x::T,B2) where T <: Number = "B2"
 
-@define_traitfn B parentbfunc(x) parentbfunc(x,B) = "B"
-@implement_traitfn B1 parentbfunc(x) = "B1"
-@implement_traitfn B2 parentbfunc(x) = "B2"
-@define_traitfn B3 b3func(x) b3func(x,B3) = "B3"
+@define_traitfn B parentbfunc(x) = begin
+    parentbfunc(x,B) = "B"
+    parentbfunc(x,B1) = "B1"
+    parentbfunc(x,B2) = "B2"
+end
+@define_traitfn B3 b3func(x) = begin
+    b3func(x,B3) = "B3"
+end
 
 @testset "Trait Definition" begin
     @test istrait(A)
@@ -74,8 +80,6 @@ end
     @test_throws ErrorException @implement_trait Integer TraitDispatch.AbstractTrait
     @test_throws ErrorException @implement_trait Integer TraitDispatch.NullTrait
     @test_throws ErrorException @implement_trait Real B
-    @test_throws ErrorException @implement_trait Real B1
-    @test_throws ErrorException @implement_trait Real A B1
 end
 
 @testset "Trait Functions" begin
@@ -105,7 +109,5 @@ end
     @test_throws ErrorException @define_traitfn AbstractTrait f(x)
     @test_throws ErrorException @define_traitfn NullTrait f(x)
     # Implementations
-    @test_throws ErrorException @implement_traitfn AbstractTrait f(x) = 0
-    @test_throws ErrorException @implement_traitfn NullTrait f(x) = 0
-    @test_throws ErrorException @implement_traitfn B b(x) = "B"
+    @test_throws ErrorException @implement_traitfn f(x,AbstractTrait) = 0
 end

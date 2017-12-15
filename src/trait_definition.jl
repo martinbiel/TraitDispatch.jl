@@ -1,14 +1,20 @@
 macro define_trait(args)
     def = if @capture(args, trait_Symbol)
+        trait == :AbstractTrait && error("Can not redefine the AbstractTrait")
+        trait == :NullTrait && error("Can not redefine the NullTrait")
         @q begin
             abstract type $(esc(trait)){$(esc(:T))} <: AbstractTrait{$(esc(:T))} end
         end
     elseif @capture(args, trait_Symbol = block_)
+        trait == :AbstractTrait && error("Can not redefine the AbstractTrait")
+        trait == :NullTrait && error("Can not redefine the NullTrait")
         code = @q begin
             abstract type $(esc(trait)){$(esc(:T))} <: AbstractTrait{$(esc(:T))} end
         end
         for ex in rmlines(block).args
             if @capture(ex,subtrait_Symbol)
+                subtrait == :AbstractTrait && error("Can not redefine the AbstractTrait")
+                subtrait == :NullTrait && error("Can not redefine the NullTrait")
                 subcode = @q begin
                     abstract type $(esc(subtrait)){$(esc(:T))} <: $(esc(trait)){$(esc(:T))} end
                 end
@@ -21,10 +27,11 @@ macro define_trait(args)
         end
         code
     elseif @capture(args, subtrait_Symbol <: trait_Symbol)
+        subtrait == :AbstractTrait && error("Can not redefine the AbstractTrait")
+        subtrait == :NullTrait && error("Can not redefine the NullTrait")
         @q begin
             $(esc(trait)) == NullTrait && error("The NullTrait can not have subtraits")
             !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait")
-            supertype($(esc(trait))) != AbstractTrait && error($(esc(trait))," is a subtrait and can not be given subtraits")
             abstract type $(esc(subtrait)){$(esc(:T))} <: $(esc(trait)){$(esc(:T))} end
         end
     end
@@ -39,35 +46,19 @@ macro implement_trait(x,trait)
         $(esc(trait)) == AbstractTrait && error("Cannot give the AbstractTrait")
         $(esc(trait)) == NullTrait && error("Cannot give the NullTrait")
         !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait")
-        supertype($(esc(trait))) != AbstractTrait && error($(esc(trait))," is a subtrait and must be given along with its parent traits")
         !isleaftrait($(esc(trait))) && error("Trait must be a leaf trait, ",$(esc(trait))," has subtraits: ",[@sprintf("%s ",t) for t in subtraits($(esc(trait)))]...)
         if implementstrait($(esc(x)),$(esc(trait)))
             warn($(esc(x))," already has trait ",$(esc(trait)),", ignoring.")
+        elseif implementstrait($(esc(x)),$(esc(supertype))($(esc(trait))))
+            warn($(esc(x))," already has parent trait ",$(esc(supertype))($(esc(trait))).body.name,", ignoring.")
         else
             $(esc(:TraitDispatch)).traitdispatch(::Type{$(esc(trait)){$(esc(:T))}}) where $(esc(:T)) <: $(esc(x)) = $(esc(trait)){$(esc(:T))}
+            super = $(esc(supertype))($(esc(trait)))
+            if super != AbstractTrait
+                $(esc(:TraitDispatch)).traitdispatch(::Type{super{$(esc(:T))}}) where $(esc(:T)) <: $(esc(x)) = $(esc(trait)){$(esc(:T))}
+            end
         end
-    end
-    prettify(code)
-end
-
-macro implement_trait(x,trait,subtrait)
-    code = @q begin
-        # Sanity checks
-        !(isa($(esc(x)),DataType) || isa($(esc(x)),UnionAll)) && error("Can only give traits to types")
-        ($(esc(x)) <: AbstractTrait) && error($(esc(x))," is a trait, and can not implement traits")
-        $(esc(trait)) == AbstractTrait && error("Cannot give the AbstractTrait")
-        $(esc(subtrait)) == AbstractTrait && error("Cannot give the AbstractTrait")
-        $(esc(trait)) == NullTrait && error("Cannot give the NullTrait")
-        $(esc(subtrait)) == NullTrait && error("Cannot give the NullTrait")
-        !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait")
-        !($(esc(subtrait)) <: AbstractTrait) && error($(esc(subtrait))," is not a trait")
-        !($(esc(subtrait)) <: $(esc(trait))) && error($(esc(subtrait))," is not a subtrait of ",$(esc(trait)))
-        if implementstrait($(esc(x)),$(esc(trait)))
-            warn($(esc(x))," already has trait ",$(esc(trait)),", ignoring.")
-        else
-            $(esc(:TraitDispatch)).traitdispatch(::Type{$(esc(trait)){$(esc(:T))}}) where $(esc(:T)) <: $(esc(x)) = $(esc(subtrait)){$(esc(:T))}
-            $(esc(:TraitDispatch)).traitdispatch(::Type{$(esc(subtrait)){$(esc(:T))}}) where $(esc(:T)) <: $(esc(x)) = $(esc(subtrait)){$(esc(:T))}
-        end
+        nothing
     end
     prettify(code)
 end

@@ -1,39 +1,40 @@
-macro define_traitfn(trait,fndef,impl...)
-    @capture(fndef,f_()) && error("Nothing to trait dispatch on")
-    # Match arguments of type f(x) and f(x) = body
-    fndef = (fndef.head == :call || fndef.head == :where) ? :($fndef = error($(fndef.args[2])," has no applicable traits")) : fndef
+macro define_traitfn(trait,traitfndef)
+    !(@capture(trait,Trait_Symbol)) && error("Please provide a trait to dispatch on")
+    (fndef, impls) = @match traitfndef begin
+        fn_(args__) => (:($traitfndef = begin end),Expr(:block))
+        (fndef_ = body_) => (:($fndef = begin end),block(prettify(body)))
+    end
+    # Match function definition
     traitfn_def_split = try
         splitdef(fndef)
     catch er
         error("Invalid trait function syntax. Parser says: ", er.msg)
     end
+    isempty(traitfn_def_split[:args]) && error("No arguments to (trait)dispatch on")
 
-    # Maybe a parentimpl was provided
-    traitfn_impl_split = if length(impl) > 1
-        error("Too many arguments provided. Specify a trait, a trait function definition and possibly an implementation")
-    else
-        if length(impl) == 1
-            traitfn_impl_split = try
-                splitdef(impl[1])
+    # Almost the same definition will be used to implement the NullTrait- and NotImplemented behaviour
+    nulltrait_split = deepcopy(traitfn_def_split)
+    noimplement_split = deepcopy(traitfn_def_split)
+
+    impltraits = Symbol[]
+    if !isempty(impls.args)
+        for fnimpl in impls.args
+            fnimpl_split = try
+                splitdef(fnimpl)
             catch er
-                error("Invalid trait function syntax. Parser says: ", er.msg)
+                println(er)
+                error("Syntax error in implementation list. Provide function implementations with the trait as last argument.")
             end
-            traitfn_def_split[:name] != traitfn_impl_split[:name] && error("Trait function names are not consistent")
-            traitfn_impl_split[:args][end] != trait && error("Specify clearly that ", traitfn_def_split[:name], " is being implemented for trait ", trait, " by specifying it as the last argument")
-            pop!(traitfn_impl_split[:args])
-            !(all(traitfn_def_split[:args] .== traitfn_impl_split[:args])) && error("Inconsistent trait function arguments")
-            traitfn_impl_split
-        else
-            Dict()
+            isempty(fnimpl_split[:args]) && error("Syntax error in implementation list. Provide function implementations with the trait as last argument.")
+            !isa(fnimpl_split[:args][end],Symbol) && error("Syntax error in implementation list. Provide function implementations with the trait as last argument.")
+            fnimpl_split[:name] != traitfn_def_split[:name] && error("Name of implemented function does not match defined function.")
+            !(all(fnimpl_split[:args][1:end-1] .== traitfn_def_split[:args])) && error("Inconsistent arguments in definition and implementation")
+            push!(impltraits,fnimpl_split[:args][end])
         end
     end
 
     # Prepare the lhs of the traitfn def.
     parname = prepare_dispatchparameter!(traitfn_def_split)
-
-    # Almost the same definition will be used to implement the NullTrait- and NotImplemented behaviour
-    nulltrait_split = deepcopy(traitfn_def_split)
-    noimplement_split = deepcopy(traitfn_def_split)
 
     # Change rhs of traitfn definition to trait dispatch call
     rhs = Expr(:block)
@@ -52,14 +53,13 @@ macro define_traitfn(trait,fndef,impl...)
     traitfn_def = combinecall(traitfn_def_split)
 
     # Finish NullTrait implementation with NullTrait dispatch
-    push!(nulltrait_split[:args],:(::Type{NullTrait{$parname}}))
+    push!(nulltrait_split[:args],:NullTrait)
+    nulltrait_split[:body] = :(error($(nulltrait_split[:args][1])," has no applicable traits"))
     nulltrait_impl = combinecall(nulltrait_split)
 
     # Finish NotImplemented implementation with dispatch on parent trait
-    push!(noimplement_split[:args],:(::Type{Trait}))
-    noimplement_split[:whereparams] = (noimplement_split[:whereparams]...,:(Trait <: $trait{$parname}))
-    noimplement_split[:body] = isempty(traitfn_impl_split) ? :(error("Trait function not implemented")) : traitfn_impl_split[:body]
-
+    push!(noimplement_split[:args],:($trait))
+    noimplement_split[:body] = :(error("Trait function ",$traitfn_def_split[:name]," not implemented for trait ",Trait.name))
     noimplement_impl = combinecall(noimplement_split)
 
     # Construct the definition code, with sanity checks
@@ -70,28 +70,36 @@ macro define_traitfn(trait,fndef,impl...)
         !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait")
         # Definitions
         $(esc(traitfn_def))
-        $(esc(nulltrait_impl))
-        if !isempty(subtraits($(esc(trait)))) || length($impl) == 1
-            $(esc(noimplement_impl))
+        if !(:NullTrait in $impltraits)
+            @implement_traitfn $(esc(nulltrait_impl))
         end
+        if !isempty(subtraits($(esc(trait)))) && !($(esc(trait)) in $impltraits)
+            @implement_traitfn $(esc(noimplement_impl))
+        end
+    end
+    for traitfn_impl in impls.args
+        push!(code.args,:(@implement_traitfn $(esc(traitfn_impl))))
     end
     prettify(code)
 end
 
-macro implement_traitfn(trait,fndef)
-    @capture(fndef,f_()) && error("Nothing to trait dispatch on")
+macro implement_traitfn(fndef)
     # Match function definition
     traitfn_impl_split = try
         splitdef(fndef)
     catch er
         error("Invalid trait function syntax. Parser says: ", er.msg)
     end
+    isempty(traitfn_impl_split[:args]) && error("No arguments to (trait)dispatch on")
+    length(traitfn_impl_split[:args]) == 1 && error("Provde at least one argument to trait dispatch on, and one trait")
+    trait = pop!(traitfn_impl_split[:args])
 
     # Prepare the lhs of the traitfn impl.
     parname = prepare_dispatchparameter!(traitfn_impl_split)
 
     # Finish the lhs of the traitfn implementation, by adding TraitDispatch
-    push!(traitfn_impl_split[:args],:(::Type{$trait{$parname}}))
+    push!(traitfn_impl_split[:args],:(::Type{Trait}))
+    traitfn_impl_split[:whereparams] = (traitfn_impl_split[:whereparams]...,:(Trait <: $trait{$parname}))
 
     # Construct the traitfn definition
     traitfn_impl = combinecall(traitfn_impl_split)
@@ -100,9 +108,7 @@ macro implement_traitfn(trait,fndef)
     code = @q begin
         # Sanity checks
         $(esc(trait)) == AbstractTrait && error("Cannot implement trait function for the AbstractTrait")
-        $(esc(trait)) == NullTrait && error("Cannot implement trait function for the NullTrait")
-        !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait")
-        (supertype($(esc(trait))) == AbstractTrait && !isleaftrait($(esc(trait)))) && error("Trait function must be implemented for some child trait. ",$(esc(trait))," has subtraits: ",[@sprintf("%s ",t) for t in subtraits($(esc(trait)))]...)
+        $(esc(trait)) != NullTrait && !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait. Provide a trait as the final argument")
 
         # Implementation
         $(esc(traitfn_impl))
