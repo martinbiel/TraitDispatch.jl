@@ -19,17 +19,25 @@ macro define_traitfn(trait,traitfndef)
     impltraits = Symbol[]
     if !isempty(impls.args)
         for (i,fnimpl) in enumerate(impls.args)
-            (fn,args,impltrait) = @match fnimpl begin
-                (fn_(args__,trait_) = body_) => (fn,args,trait)
+            (fn,args,wparams,impltrait) = @match fnimpl begin
+                (fn_(args__,trait_) = body_) => (fn,args,[],trait)
+                (fn_(args__,trait_) where wparams__ = body_) => (fn,args,wparams,trait)
                 (function fn_(args__,trait_)
                     body_
-                end) => (fn,args,trait)
+                 end) => (fn,args,[],trait)
+                (function fn_(args__,trait_) where wparams__
+                    body_
+                end) => (fn,args,wparams,trait)
                 _ => error("Syntax error in implementation list. Provide function implementations with the trait as last argument.")
             end
             if isa(impltrait,Expr)
                 if impltrait.head == :call && impltrait.args[1] == :! && impltrait.args[2] == trait
                     impltrait = :NullTrait
-                    impls.args[i].args[1].args[end] = :NullTrait
+                    if !isempty(wparams)
+                        impls.args[i].args[1].args[1].args[end] = :NullTrait
+                    else
+                        impls.args[i].args[1].args[end] = :NullTrait
+                    end
                 else
                     error("Syntax error in last argument of implementation list. Use !Trait to specify that the function is implemented for types that do not implement Trait.")
                 end
@@ -39,6 +47,9 @@ macro define_traitfn(trait,traitfndef)
             !isa(impltrait,Symbol) && error("Syntax error in last argument of implementation list. Specify for which trait the function is being implemented as last argument.")
             fn != traitfn_def_split[:name] && error("Name of implemented function does not match defined function.")
             !(all(args .== traitfn_def_split[:args])) && error("Inconsistent arguments in definition and implementation")
+            if !isempty(wparams)
+                !(all(wparams .== traitfn_def_split[:whereparams])) && error("Inconsistent where parameters in definition and implementation")
+            end
             push!(impltraits,impltrait)
         end
     end
