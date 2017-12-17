@@ -18,15 +18,26 @@ macro define_traitfn(trait,traitfndef)
 
     impltraits = Symbol[]
     if !isempty(impls.args)
-        for fnimpl in impls.args
+        for (i,fnimpl) in enumerate(impls.args)
             fnimpl_split = try
                 splitdef(fnimpl)
             catch er
                 println(er)
                 error("Syntax error in implementation list. Provide function implementations with the trait as last argument.")
             end
+            impltrait = fnimpl_split[:args][end]
+            if isa(impltrait,Expr)
+                if impltrait.head == :call && impltrait.args[1] == :! && impltrait.args[2] == trait
+                    impltrait = :NullTrait
+                    fnimpl_split[:args][end] = :NullTrait
+                    impls.args[i] = combinedef(fnimpl_split)
+                else
+                    error("Syntax error in last argument of implementation list. Use !Trait to specify that the function is implemented for types that do not implement Trait.")
+                end
+            end
             isempty(fnimpl_split[:args]) && error("Syntax error in implementation list. Provide function implementations with the trait as last argument.")
-            !isa(fnimpl_split[:args][end],Symbol) && error("Syntax error in implementation list. Provide function implementations with the trait as last argument.")
+            length(fnimpl_split[:args]) < 2 && error("Syntax error in implementation list. Provide function implementations with the trait as last argument.")
+            !isa(impltrait,Symbol) && error("Syntax error in last argument of implementation list. Specify for which trait the function is being implemented as last argument.")
             fnimpl_split[:name] != traitfn_def_split[:name] && error("Name of implemented function does not match defined function.")
             !(all(fnimpl_split[:args][1:end-1] .== traitfn_def_split[:args])) && error("Inconsistent arguments in definition and implementation")
             push!(impltraits,fnimpl_split[:args][end])
@@ -59,7 +70,7 @@ macro define_traitfn(trait,traitfndef)
 
     # Finish NotImplemented implementation with dispatch on parent trait
     push!(noimplement_split[:args],:($trait))
-    noimplement_split[:body] = :(error("Trait function ",$traitfn_def_split[:name]," not implemented for trait ",Trait.name))
+    noimplement_split[:body] = :(error("Trait function ",$(traitfn_def_split[:name])," not implemented for trait ",Trait.name))
     noimplement_impl = combinecall(noimplement_split)
 
     # Construct the definition code, with sanity checks
@@ -68,17 +79,23 @@ macro define_traitfn(trait,traitfndef)
         $(esc(trait)) == AbstractTrait && error("Cannot define trait function for the AbstractTrait")
         $(esc(trait)) == NullTrait && error("Cannot define trait function for the NullTrait")
         !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait")
-        # Definitions
+        # Definition
         $(esc(traitfn_def))
-        if !(:NullTrait in $impltraits)
-            @implement_traitfn $(esc(nulltrait_impl))
-        end
-        if !isempty(subtraits($(esc(trait)))) && !($(esc(trait)) in $impltraits)
-            @implement_traitfn $(esc(noimplement_impl))
-        end
     end
+    # Provided implementations
     for traitfn_impl in impls.args
         push!(code.args,:(@implement_traitfn $(esc(traitfn_impl))))
+    end
+    # Default implementations
+    if !(:NullTrait in impltraits)
+        push!(code.args,:(@implement_traitfn $(esc(nulltrait_impl))))
+    end
+    if !(trait in impltraits)
+        push!(code.args,@q begin
+            if !isempty(subtraits($(esc(trait))))
+                @implement_traitfn $(esc(noimplement_impl))
+            end
+        end)
     end
     prettify(code)
 end
