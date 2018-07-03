@@ -2,6 +2,7 @@ macro define_traitfn(trait,traitfndef)
     !(@capture(trait,Trait_Symbol)) && error("Please provide a trait to dispatch on")
     (fndef, impls) = @match traitfndef begin
         fn_(args__) => (:($traitfndef = begin end),Expr(:block))
+        fn_(args__) where wargs__ => (:($traitfndef = begin end),Expr(:block))
         (fndef_ = body_) => (:($fndef = begin end),block(prettify(body)))
     end
     # Match function definition
@@ -118,7 +119,7 @@ macro implement_traitfn(fndef)
         error("Invalid trait function syntax. Parser says: ", er.msg)
     end
     isempty(traitfn_impl_split[:args]) && error("No arguments to (trait)dispatch on")
-    length(traitfn_impl_split[:args]) == 1 && error("Provde at least one argument to trait dispatch on, and one trait")
+    length(traitfn_impl_split[:args]) == 1 && error("Provide at least one argument to trait dispatch on, and one trait")
     trait = pop!(traitfn_impl_split[:args])
 
     # Prepare the lhs of the traitfn impl.
