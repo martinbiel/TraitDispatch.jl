@@ -1,5 +1,5 @@
 using TraitDispatch
-using Base.Test
+using Test
 
 @define_trait A
 @define_trait B = begin
@@ -61,7 +61,7 @@ end
 
     # Subtypes of AbstractArray should have B3
     @test hastrait(Vector(),B3)
-    @test hastrait(Matrix(0,0),B3)
+    @test hastrait(Matrix(undef,0,0),B3)
 
     # Integers and floats should have B1 (and thereby B) as well
     @test hastrait(1,A)

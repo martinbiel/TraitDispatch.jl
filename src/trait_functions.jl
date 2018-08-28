@@ -95,18 +95,18 @@ macro define_traitfn(trait,traitfndef)
     end
     # Provided implementations
     for traitfn_impl in impls.args
-        push!(code.args,:(@implement_traitfn $(esc(traitfn_impl))))
+        push!(code.args,esc(:(@implement_traitfn $traitfn_impl)))
     end
     # Default implementations
     if !(:NullTrait in impltraits)
-        push!(code.args,:(@implement_traitfn $(esc(nulltrait_impl))))
+        push!(code.args,esc(:(@implement_traitfn $nulltrait_impl)))
     end
     if !(trait in impltraits)
-        push!(code.args,@q begin
-            if !isempty(subtraits($(esc(trait))))
-                @implement_traitfn $(esc(noimplement_impl))
+        push!(code.args,esc(@q begin
+            if !isempty(subtraits($trait))
+                @implement_traitfn $noimplement_impl
             end
-        end)
+        end))
     end
     prettify(code)
 end

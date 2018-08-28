@@ -20,7 +20,7 @@ macro define_trait(args)
                 end
                 push!(code.args,unblock(subcode))
             elseif @capture(ex,f_(x__)) || @capture(ex,f_(x__) = body_)
-                push!(code.args,:(@define_traitfn($(esc(trait)),$(esc(ex)))))
+                push!(code.args,esc(:(@define_traitfn($trait,$ex))))
             else
                 error("Expected subtrait or traitfn definition, got ", ex)
             end
@@ -48,9 +48,9 @@ macro implement_trait(x,trait)
         !($(esc(trait)) <: AbstractTrait) && error($(esc(trait))," is not a trait")
         !isleaftrait($(esc(trait))) && error("Trait must be a leaf trait, ",$(esc(trait))," has subtraits: ",[@sprintf("%s ",t) for t in subtraits($(esc(trait)))]...)
         if implementstrait($(esc(x)),$(esc(trait)))
-            warn($(esc(x))," already has trait ",$(esc(trait)),", ignoring.")
+            @warn @sprintf("%s already has trait %s, ignoring",$(esc(x)),$(esc(trait)))
         elseif implementstrait($(esc(x)),$(esc(supertype))($(esc(trait))))
-            warn($(esc(x))," already has parent trait ",$(esc(supertype))($(esc(trait))).body.name,", ignoring.")
+            @warn @sprintf("%s already has parent trait %s, ignoring",$(esc(x)),$(esc(supertype))($(esc(trait))).body.name)
         else
             $(esc(:TraitDispatch)).traitdispatch(::Type{$(esc(trait)){$(esc(:T))}}) where $(esc(:T)) <: $(esc(x)) = $(esc(trait)){$(esc(:T))}
             super = $(esc(supertype))($(esc(trait)))

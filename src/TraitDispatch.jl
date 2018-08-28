@@ -1,5 +1,7 @@
 module TraitDispatch
 
+using InteractiveUtils
+using Printf
 using MacroTools
 using MacroTools: postwalk, @q, combinedef
 
