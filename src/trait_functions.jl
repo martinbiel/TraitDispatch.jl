@@ -47,9 +47,9 @@ macro define_traitfn(trait,traitfndef)
             length(args) < 1 && error("Syntax error in implementation list. Provide function implementations with the trait as last argument.")
             !isa(impltrait,Symbol) && error("Syntax error in last argument of implementation list. Specify for which trait the function is being implemented as last argument.")
             fn != traitfn_def_split[:name] && error("Name of implemented function does not match defined function.")
-            !(all(args .== traitfn_def_split[:args])) && error("Inconsistent arguments in definition and implementation")
+            !(all(args .== traitfn_def_split[:args])) && error("Inconsistent arguments in definition and implementation, in function ", traitfn_def_split[:name])
             if !isempty(wparams)
-                !(all(wparams .== traitfn_def_split[:whereparams])) && error("Inconsistent where parameters in definition and implementation")
+                !(all(wparams .== traitfn_def_split[:whereparams])) && error("Inconsistent where parameters in definition and implementation, in function ",traitfn_def_split[:name])
             end
             push!(impltraits,impltrait)
         end
@@ -171,13 +171,17 @@ function prepare_dispatchparameter!(fn_split::Dict)
 end
 
 function combinecall(dict::Dict)
-  params = get(dict, :params, [])
-  wparams = get(dict, :whereparams, [])
-  name = dict[:name]
-  name_param = isempty(params) ? name : :($name{$(params...)})
-  if isempty(wparams)
-    :($name_param($(dict[:args]...);$(dict[:kwargs]...)) = $(dict[:body]))
-  else
-    :($name_param($(dict[:args]...);$(dict[:kwargs]...)) where {$(wparams...)} = $(dict[:body]))
-  end
+    params = get(dict, :params, [])
+    wparams = get(dict, :whereparams, [])
+    name = dict[:name]
+    name_param = isempty(params) ? name : :($name{$(params...)})
+    if isempty(wparams)
+        :(function $name_param($(dict[:args]...);$(dict[:kwargs]...))
+          $(dict[:body])
+          end)
+    else
+        :(function $name_param($(dict[:args]...);$(dict[:kwargs]...)) where {$(wparams...)}
+          $(dict[:body])
+          end)
+    end
 end
